@@ -1,31 +1,25 @@
 const mysql = require('mysql2/promise');
-const logger = require('./logger');
 
-const db = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'school_attendance_plus',
-    port: process.env.DB_PORT || 3306,
-    waitForConnections: true,
-    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
-    queueLimit: 0,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0
-});
+// Railway menyediakan DATABASE_URL secara otomatis di Environment Variables
+const dbConfig = process.env.DATABASE_URL || {
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT
+};
+
+const pool = mysql.createPool(dbConfig);
 
 async function initializeDatabase() {
     try {
-        const connection = await db.getConnection();
+        const connection = await pool.getConnection();
+        console.log('✅ Berhasil terhubung ke Database MySQL Railway');
         connection.release();
-        logger.info('✅ Database connected to: ' + (process.env.DB_NAME || 'school_attendance_plus'));
     } catch (err) {
-        logger.error('❌ Database connection error:', err);
-        process.exit(1);
+        console.error('❌ Gagal koneksi database:', err.message);
+        throw err;
     }
 }
 
-module.exports = {
-    db,
-    initializeDatabase
-};
+module.exports = { pool, initializeDatabase };
