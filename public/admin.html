@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Sistem Absensi QR</title>
+
+    <meta name="theme-color" content="#2980b9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Absensi QR">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        @keyframes gradient-shift {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header-nav">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="avatar">A</div>
+                <div>
+                    <h3 id="adminName" style="margin: 0; font-size: 1.1rem;">Administrator</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Sistem Absensi Sekolah</p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="runAutoAlpha()" class="btn btn-secondary"
+                    title="Tandai Siswa yang tidak absen sebagai Alpha">
+                    <i class="fas fa-robot"></i> Auto-Alpha
+                </button>
+                <button onclick="logout()" class="btn btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <h1><i class="fas fa-user-shield"></i> Panel Administrator</h1>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-nav">
+            <button onclick="showTab('tab-dashboard')" class="btn btn-outline active-tab" id="nav-dashboard"
+                style="border: none; border-bottom: 2px solid var(--primary); border-radius: 0;">
+                <i class="fas fa-home"></i> Dashboard
+            </button>
+            <button onclick="showTab('tab-manage')" class="btn btn-outline" id="nav-manage"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-users-cog"></i> Kelola Data
+            </button>
+            <button onclick="showTab('tab-device')" class="btn btn-outline" id="nav-device"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-mobile-alt"></i> Device Login
+            </button>
+            <button onclick="showTab('tab-qr')" class="btn btn-outline" id="nav-qr"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-qrcode"></i> Buat QR
+            </button>
+            <button onclick="showTab('tab-sessions')" class="btn btn-outline" id="nav-sessions"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-history"></i> Sesi Aktif
+            </button>
+            <button onclick="showTab('tab-report')" class="btn btn-outline" id="nav-report"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-file-invoice"></i> Laporan
+            </button>
+            <button onclick="showTab('tab-alpha')" class="btn btn-outline" id="nav-alpha"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-user-slash"></i> Siswa Alpha
+            </button>
+            <button onclick="showTab('tab-izin')" class="btn btn-outline" id="nav-izin"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-envelope-open-text"></i> Permohonan Izin
+            </button>
+            <button onclick="showTab('tab-users')" class="btn btn-outline" id="nav-users"
+                style="border: none; border-radius: 0; display: none;">
+                <i class="fas fa-user-shield"></i> Kelola User
+            </button>
+        </div>
+
+        <!-- Tab: User Management (Superadmin Only) -->
+        <div id="tab-users" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Kelola Admin & Guru</h3>
+                    <button onclick="showCreateUserModal()" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Tambah User Baru
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>NISN/NIP</th>
+                                <th>Nama</th>
+                                <th>Role</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center">Memuat data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 0: Dashboard Overview -->
+        <div id="tab-dashboard" class="tab-content">
+            <div class="stats-grid" style="margin-bottom: 2rem;">
+                <div class="stat-card">
+                    <span class="stat-label">Total Siswa</span>
+                    <span class="stat-value" id="adminTotalStudents">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Hadir Hari Ini</span>
+                    <span class="stat-value" style="color: var(--success);" id="adminTodayPresent">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Izin / Sakit</span>
+                    <span class="stat-value" style="color: var(--warning);" id="adminTodayIzin">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Alpha</span>
+                    <span class="stat-value" style="color: var(--danger);" id="adminTodayAlpha">0</span>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2><i class="fas fa-broadcast-tower"></i> Live Feed Kehadiran</h2>
+                    <div id="liveAttendanceFeed" style="margin-top: 1.5rem; max-height: 400px; overflow-y: auto;">
+                        <p style="color:var(--text-dim); text-align:center; padding:20px;">Menunggu data...</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2><i class="fas fa-clock"></i> Sesi Berjalan</h2>
+                    <div id="currentActiveSessions" style="margin-top: 1.5rem;">
+                        <p style="color:var(--text-dim); text-align:center; padding:20px;">Memuat sesi...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 1: Kelola Data -->
+        <div id="tab-manage" class="tab-content">
+            <div class="grid-2">
+                <!-- Register Card -->
+                <div class="card">
+                    <h2 style="color: var(--primary);"><i class="fas fa-user-plus"></i> Tambah User</h2>
+                    <form id="registerForm" style="margin-top: 1.5rem;">
+                        <div class="form-group">
+                            <label>Nama Lengkap</label>
+                            <input type="text" id="regNama" placeholder="Nama lengkap siswa/guru" required>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>NISN / NIP</label>
+                                <input type="text" id="regNisn" placeholder="Nomor Induk" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" id="regPassword" placeholder="Default: 123456" required>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Kelas</label>
+                                <select id="regKelas" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Role</label>
+                                <select id="regRole" required>
+                                    <option value="student">Siswa</option>
+                                    <option value="teacher">Guru</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            Simpan Data <i class="fas fa-save"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- List Card -->
+                <div class="card">
+                    <div
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+                        <h2 style="margin:0;"><i class="fas fa-users"></i> Daftar User</h2>
+                        <button onclick="loadUsers()" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label>Filter Kelas</label>
+                        <select id="filterKelas" onchange="loadUsers()"></select>
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Info User</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Device Login Management -->
+        <div id="tab-device" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                    <h2><i class="fas fa-mobile-alt"></i> Device Login Management</h2>
+                    <button onclick="loadDeviceSessions()" class="btn btn-secondary" style="padding: 8px 12px;">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+
+                <div class="grid-3" style="margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Filter Kelas</label>
+                        <select id="deviceKelasFilter" onchange="loadDeviceSessions()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status Device</label>
+                        <select id="deviceStatusFilter" onchange="loadDeviceSessions()">
+                            <option value="">Semua Status</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="deviceRoleFilter" onchange="loadDeviceSessions()">
+                            <option value="">Semua Role</option>
+                            <option value="student">Siswa</option>
+                            <option value="teacher">Guru</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card"
+                    style="background: rgba(41, 128, 185, 0.1); border: 1px solid rgba(41, 128, 185, 0.2); margin-bottom: 20px;">
+                    <h3 style="color: var(--primary);"><i class="fas fa-info-circle"></i> Informasi Single Device Login
+                    </h3>
+                    <p style="margin: 10px 0;">
+                        <strong>Sistem Single Device Login:</strong> Setiap user hanya dapat login di <strong>satu
+                            device</strong> saja.
+                    </p>
+                    <ul style="padding-left: 20px; margin: 10px 0;">
+                        <li>Jika user login di device lain, device sebelumnya akan otomatis logout</li>
+                        <li>Admin dapat melihat semua device aktif dan melakukan logout paksa</li>
+                        <li>User yang mengalami masalah login dapat meminta bantuan admin</li>
+                    </ul>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Device ID</th>
+                                <th>Browser/OS</th>
+                                <th>Last Activity</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deviceSessionsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Buat QR -->
+        <div id="tab-qr" class="tab-content" style="display: none;">
+            <div class="card">
+                <h2><i class="fas fa-qrcode"></i> Buat Sesi Absensi</h2>
+                <form id="sessionForm" style="margin-top: 1.5rem;">
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Mata Pelajaran</label>
+                            <select id="mapelSelect" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Kelas</label>
+                            <select id="kelasSelect" required></select>
+                        </div>
+                    </div>
+                    <div class="grid-3">
+                        <div class="form-group">
+                            <label>Kode QR</label>
+                            <input type="text" id="sessionCode" readonly style="background: rgba(255,255,255,0.05);">
+                        </div>
+                        <div class="form-group">
+                            <label>Jam Mulai</label>
+                            <input type="time" id="startTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Jam Selesai</label>
+                            <input type="time" id="endTime" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        Buka Sesi Absensi <i class="fas fa-play"></i>
+                    </button>
+                </form>
+                <div id="qrcode"
+                    style="margin: 2rem 0; display: none; justify-content: center; background: white; padding: 20px; border-radius: var(--radius-md); max-width: 240px; margin-left: auto; margin-right: auto;">
+                </div>
+                <button id="downloadBtn" onclick="downloadQR()" class="btn btn-secondary"
+                    style="display:none; width: 100%;">
+                    <i class="fas fa-download"></i> Simpan Gambar QR
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab 4: Sesi Aktif -->
+        <div id="tab-sessions" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                    <h2><i class="fas fa-calendar-check"></i> Sesi Aktif Hari Ini</h2>
+                    <button onclick="loadSessions()" class="btn btn-secondary" style="padding: 8px 12px;">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div id="sessionsList"></div>
+            </div>
+        </div>
+
+        <!-- Tab 5: Laporan -->
+        <div id="tab-report" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                    <h2><i class="fas fa-file-invoice"></i> Rekap Absensi</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="exportData('excel')" class="btn btn-secondary"
+                            style="background: rgba(46, 213, 115, 0.1); color: var(--success); border-color: rgba(46, 213, 115, 0.2);">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                        <button onclick="exportData('pdf')" class="btn btn-secondary"
+                            style="background: rgba(255, 71, 87, 0.1); color: var(--danger); border-color: rgba(255, 71, 87, 0.2);">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="grid-3" style="margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Kelas</label>
+                        <select id="reportKelas" onchange="loadReport()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Mapel</label>
+                        <select id="reportMapel" onchange="loadReport()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal</label>
+                        <input type="date" id="reportTanggal" onchange="loadReport()">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Siswa</th>
+                                <th>Info</th>
+                                <th>Waktu</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 6: Siswa Alpha -->
+        <div id="tab-alpha" class="tab-content" style="display: none;">
+            <div class="card">
+                <h2><i class="fas fa-user-times"></i> Deteksi Siswa Alpha</h2>
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Pilih Sesi untuk Dicek</label>
+                    <select id="alphaSessionSelect" onchange="loadAlphaReport()"></select>
+                </div>
+                <div id="alphaReport" style="margin-top: 2rem;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 7: Permohonan Izin -->
+        <div id="tab-izin" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                    <h2><i class="fas fa-envelope-open-text"></i> Daftar Permohonan Izin</h2>
+                    <button onclick="loadIzinRequests()" class="btn btn-secondary" style="padding: 8px 12px;">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Siswa</th>
+                                <th>Jenis</th>
+                                <th>Status Approval</th>
+                                <th>Keterangan</th>
+                                <th>Waktu</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="izinRequestsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="studentModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('studentModal')">&times;</span>
+            <div id="studentModalContent"></div>
+        </div>
+    </div>
+
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('detailModal')">&times;</span>
+            <div id="detailModalContent"></div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('editModal')">&times;</span>
+            <h2 style="color: var(--primary);"><i class="fas fa-edit"></i> Edit Data User</h2>
+            <form id="editForm" style="margin-top: 1.5rem;">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>Nama Lengkap</label>
+                    <input type="text" id="editNama" required>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="editEmail" placeholder="opsional">
+                    </div>
+                    <div class="form-group">
+                        <label>Telepon</label>
+                        <input type="text" id="editTelepon" placeholder="opsional">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>NISN / NIP</label>
+                        <input type="text" id="editNisn" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="editStatus" required>
+                            <option value="1">Aktif</option>
+                            <option value="0">Nonaktif</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Kelas</label>
+                        <select id="editKelas" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="editRole" required>
+                            <option value="student">Siswa</option>
+                            <option value="teacher">Guru</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Update Data</button>
+                    <button type="button" onclick="closeModal('editModal')" class="btn btn-secondary">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="createUserModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeCreateUserModal()">&times;</span>
+            <h2>Tambah User Baru</h2>
+            <form id="createUserForm" onsubmit="handleCreateUser(event)">
+                <div class="form-group">
+                    <label>NISN / NIP</label>
+                    <input type="text" name="nisn" required class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Nama Lengkap</label>
+                    <input type="text" name="nama" required class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" required class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select name="role" class="form-control" required onchange="toggleKelasField(this.value)">
+                        <option value="student">Siswa</option>
+                        <option value="teacher">Guru</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group" id="kelasField">
+                    <label>Kelas</label>
+                    <select name="kelas" class="form-control">
+                        <option value="">Pilih Kelas...</option>
+                        <!-- Options will be populated by JS -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Email (Optional)</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeCreateUserModal()">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Device Management Modals -->
+    <div id="deviceModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('deviceModal')">&times;</span>
+            <div id="deviceModalContent"></div>
+        </div>
+    </div>
+
+    <div id="deviceDetailModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('deviceDetailModal')">&times;</span>
+            <div id="deviceDetailModalContent"></div>
+        </div>
+    </div>
+
+    <div
+        style="text-align: center; margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; margin-bottom: 2rem;">
+        <p style="color: var(--text-dim); font-size: 0.85rem;">
+            &copy; 2026 Sistem Absensi Sekolah<br>
+            <span style="opacity: 0.7;">Modern • Secure • Fast</span>
+        </p>
+        <div
+            style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; display: inline-block;">
+            <div style="
+                background: linear-gradient(90deg, #3498db, #2ecc71, #f1c40f, #e74c3c, #3498db);
+                background-size: 300% 300%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 0.9rem;
+                font-weight: 600;
+                animation: gradient-shift 4s ease infinite;
+                filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.5));
+            ">
+                ✨ Developed by Wahyu Yuhono ✨
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => console.log('SW registered:', registration))
+                    .catch(error => console.log('SW registration failed:', error));
+            });
+        }
+    </script>
+    <script src="/js/admin.js"></script>
+</body>
+
+</html>

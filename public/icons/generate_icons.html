@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Generating Icons</title>
+</head>
+
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const sizes = [192, 512];
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        sizes.forEach(size => {
+            canvas.width = size;
+            canvas.height = size;
+
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#2980b9');
+            gradient.addColorStop(1, '#3498db');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.4}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('QR', size / 2, size / 2);
+
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        document.body.innerHTML = '<h2>Icons generated. Check your downloads folder.</h2>';
+    </script>
+</body>
+
+</html>

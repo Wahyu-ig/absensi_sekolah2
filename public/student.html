@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siswa - Absensi QR</title>
+
+    <meta name="theme-color" content="#2980b9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Absensi QR">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        @keyframes gradient-shift {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header-nav">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="avatar" id="userInitial">S</div>
+                <div>
+                    <h3 id="userName" style="margin: 0; font-size: 1.1rem;">Memuat...</h3>
+                    <p id="userKelas" style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Kelas -</p>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </header>
+
+        <h1>📱 Absensi Siswa</h1>
+
+        <div class="card text-center" style="padding: 1.5rem;">
+            <div id="currentTime" style="font-size: 2.5rem; font-weight: 800; color: var(--primary);">--:--:--</div>
+            <p id="currentDate" style="color: var(--text-muted); margin-top: 5px;">Memuat tanggal...</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- SCAN QR SECTION -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;"><i class="fas fa-qrcode"></i> Scan Kehadiran</h2>
+                <button class="btn btn-secondary" onclick="refreshAll()" style="padding: 8px 12px; font-size: 0.85rem;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <div class="tab-nav"
+                style="border-bottom: 1px solid var(--glass-border); padding-bottom: 0; margin-bottom: 2rem;">
+                <button class="btn btn-outline active-tab" id="tab-camera-btn" onclick="switchTab('camera')"
+                    style="border: none; border-bottom: 2px solid var(--primary); border-radius: 0;">
+                    <i class="fas fa-camera"></i> Kamera
+                </button>
+                <button class="btn btn-outline" id="tab-upload-btn" onclick="switchTab('upload')"
+                    style="border: none; border-radius: 0;">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+                <button class="btn btn-outline" id="tab-manual-btn" onclick="switchTab('manual')"
+                    style="border: none; border-radius: 0;">
+                    <i class="fas fa-keyboard"></i> Manual
+                </button>
+                <button class="btn btn-outline" id="tab-izin-btn" onclick="switchTab('izin')"
+                    style="border: none; border-radius: 0;">
+                    <i class="fas fa-envelope-open-text"></i> Izin
+                </button>
+            </div>
+
+            <!-- Camera Tab -->
+            <div id="cameraTab" class="tab-content">
+                <div id="reader"
+                    style="border-radius: var(--radius-md); overflow: hidden; background: #000; border: 1px solid var(--glass-border); margin-bottom: 1.5rem;">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="startBtn" class="btn btn-primary" style="flex: 1;" onclick="startScan()">
+                        <i class="fas fa-play"></i> Mulai Scan
+                    </button>
+                    <button id="stopBtn" class="btn btn-danger" style="flex: 1; display:none;" onclick="stopScan()">
+                        <i class="fas fa-stop"></i> Berhenti
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="uploadTab" class="tab-content" style="display:none;">
+                <div
+                    style="border: 2px dashed var(--glass-border); border-radius: var(--radius-md); padding: 3rem 1rem; text-align: center; margin-bottom: 1.5rem;">
+                    <i class="fas fa-cloud-upload-alt fa-3x" style="color: var(--text-dim); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Pilih atau drop gambar QR Code di sini
+                    </p>
+                    <input type="file" id="qrFile" accept="image/*" onchange="handleFileUpload(event)"
+                        style="display: none;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('qrFile').click()">
+                        Pilih Gambar
+                    </button>
+                    <canvas id="qrCanvas" style="display:none;"></canvas>
+                </div>
+                <div id="uploadResult"></div>
+            </div>
+
+            <!-- Manual Tab -->
+            <div id="manualTab" class="tab-content" style="display:none;">
+                <div class="form-group">
+                    <label>Kode QR</label>
+                    <input type="text" id="manualCode" placeholder="Masukkan kode QR manual (cth: QR_123)"
+                        style="margin-bottom: 1rem;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="submitManualCode()">
+                        Kirim Kode Kehadiran
+                    </button>
+                </div>
+            </div>
+
+            <!-- Izin Tab -->
+            <div id="izinTab" class="tab-content" style="display:none;">
+                <form id="izinForm" onsubmit="handleIzinSubmit(event)">
+                    <div class="form-group">
+                        <label>Jenis Izin</label>
+                        <select id="izinType" required style="margin-bottom: 1rem;">
+                            <option value="izin">Izin</option>
+                            <option value="sakit">Sakit</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Keterangan / Alasan</label>
+                        <textarea id="izinKeterangan" required
+                            placeholder="Contoh: Mengikuti lomba matematika / Sedang demam"
+                            style="width: 100%; background: var(--glass-bg); color: var(--text-light); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; margin-bottom: 1rem; min-height: 80px;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Lampiran / Bukti (Opsional)</label>
+                        <input type="file" id="izinFile" accept="image/*" style="margin-bottom: 1.5rem;">
+                        <p
+                            style="font-size: 0.75rem; color: var(--text-muted); margin-top: -1rem; margin-bottom: 1rem;">
+                            Format: Gambar/Foto (Max 2MB)</p>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-paper-plane"></i> Kirim Permohonan Izin
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Total Hadir</span>
+                <span class="stat-value" id="totalAbsen" style="color: var(--primary);">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Bulan Ini</span>
+                <span class="stat-value" id="monthAbsen" style="color: var(--secondary);">0</span>
+            </div>
+        </div>
+
+        <!-- SESSIONS AND HISTORY -->
+        <div class="card">
+            <h2><i class="fas fa-calendar-check"></i> Sesi Aktif Sekarang</h2>
+            <div id="activeSessions" style="margin-top: 1rem;">
+                <p class="loading-text" style="color: var(--text-dim);">Memuat sesi...</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><i class="fas fa-history"></i> Riwayat Absensi Terakhir</h2>
+            <div id="historyList" class="table-responsive" style="margin-top: 1rem;">
+                <p class="loading-text" style="color: var(--text-dim);">Memuat riwayat...</p>
+            </div>
+        </div>
+    </div>
+
+    <div
+        style="text-align: center; margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; margin-bottom: 2rem;">
+        <p style="color: var(--text-dim); font-size: 0.85rem;">
+            &copy; 2026 Sistem Absensi Sekolah<br>
+            <span style="opacity: 0.7;">Modern • Secure • Fast</span>
+        </p>
+        <div
+            style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; display: inline-block;">
+            <div style="
+                background: linear-gradient(90deg, #3498db, #2ecc71, #f1c40f, #e74c3c, #3498db);
+                background-size: 300% 300%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 0.9rem;
+                font-weight: 600;
+                animation: gradient-shift 4s ease infinite;
+                filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.5));
+            ">
+                ✨ Developed by Wahyu Yuhono ✨
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => console.log('SW registered:', registration))
+                    .catch(error => console.log('SW registration failed:', error));
+            });
+        }
+    </script>
+    <script src="/js/student.js"></script>
+</body>
+
+</html>

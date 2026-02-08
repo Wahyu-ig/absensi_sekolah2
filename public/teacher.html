@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guru Dashboard - Sistem Absensi</title>
+
+    <meta name="theme-color" content="#2980b9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Absensi QR">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @keyframes gradient-shift {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header-nav">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="avatar" id="userInitial">G</div>
+                <div>
+                    <h3 id="userName" style="margin: 0; font-size: 1.1rem;">Memuat...</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">
+                        <i class="fas fa-chalkboard-teacher"></i> Guru
+                    </p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="logout()" class="btn btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <h1>Panel Guru</h1>
+
+        <div class="card text-center" style="padding: 1.5rem; margin-bottom: 2rem;">
+            <div id="currentTime" style="font-size: 2.5rem; font-weight: 800; color: var(--primary);">--:--:--</div>
+            <p id="currentDate" style="color: var(--text-muted); margin-top: 5px;">Memuat tanggal...</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-nav" style="margin-bottom: 2rem;">
+            <button onclick="showPage('dashboard')" class="btn btn-outline active-tab" id="nav-dashboard"
+                style="border: none; border-bottom: 2px solid var(--primary); border-radius: 0;">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </button>
+            <button onclick="showPage('sessions')" class="btn btn-outline" id="nav-sessions"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-calendar-alt"></i> Kelola Sesi
+            </button>
+            <button onclick="showPage('history')" class="btn btn-outline" id="nav-history"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-file-alt"></i> Laporan
+            </button>
+            <button onclick="showPage('izin')" class="btn btn-outline" id="nav-izin"
+                style="border: none; border-radius: 0;">
+                <i class="fas fa-user-clock"></i> Siswa Izin
+            </button>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Dashboard Section -->
+            <section id="dashboardSection" class="page-section">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Sesi Hari Ini</span>
+                        <span class="stat-value" id="statsTodaySessions" style="color: var(--primary);">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Sesi Aktif</span>
+                        <span class="stat-value" id="statsActiveSessions" style="color: var(--success);">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Siswa Hadir Hari Ini</span>
+                        <span class="stat-value" id="statsTodayAttendance" style="color: var(--secondary);">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Total Sesi</span>
+                        <span class="stat-value" id="statsTotalSessions" style="color: var(--accent);">0</span>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin:0;"><i class="fas fa-chart-bar"></i> Statistik & Analitik</h2>
+                    <div class="form-group" style="margin:0; width: 250px;">
+                        <select id="chartSubjectFilter" onchange="updateChartsWithFilter()"
+                            style="background: var(--glass-bg); border: 1px solid var(--glass-border); color: white; padding: 8px 15px; border-radius: 8px; width: 100%;">
+                            <option value="">Semua Mata Pelajaran</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-top: 1.5rem; gap: 20px;">
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin-top: 0; font-size: 1.1rem; color: var(--text-muted);"><i
+                                class="fas fa-chart-line"></i> Tren Kehadiran (7 Hari Terakhir)</h3>
+                        <div style="height: 250px; position: relative; margin-top: 1rem;">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin-top: 0; font-size: 1.1rem; color: var(--text-muted);"><i
+                                class="fas fa-chart-pie"></i> Distribusi Mata Pelajaran</h3>
+                        <div style="height: 250px; position: relative; margin-top: 1rem;">
+                            <canvas id="subjectChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Session Card -->
+                <div class="card">
+                    <h2 style="color: var(--primary);"><i class="fas fa-plus-circle"></i> Buat Sesi Baru</h2>
+                    <form id="createSessionForm" onsubmit="createSession(event)" style="margin-top: 1.5rem;">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label><i class="fas fa-book"></i> Mata Pelajaran</label>
+                                <select id="sessionMapel" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-school"></i> Kelas</label>
+                                <select id="sessionKelas" required></select>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label><i class="fas fa-clock"></i> Jam Mulai</label>
+                                <input type="time" id="sessionStart" required>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-clock"></i> Jam Selesai</label>
+                                <input type="time" id="sessionEnd" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <i class="fas fa-qrcode"></i> Generate Sesi QR
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Active Sessions -->
+                <div class="card">
+                    <div
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+                        <h2 style="margin:0;"><i class="fas fa-bolt"></i> Sesi Aktif Saat Ini</h2>
+                        <button onclick="loadActiveSessions()" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div id="activeSessionsList">
+                        <p class="loading-text" style="color: var(--text-dim);">Memuat sesi...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sessions Section -->
+            <section id="sessionsSection" class="page-section" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+                        <h2><i class="fas fa-calendar"></i> Semua Riwayat Sesi</h2>
+                        <button onclick="loadSessions()" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div id="allSessionsList">
+                        <p class="loading-text" style="color: var(--text-dim);">Memuat...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Section -->
+            <section id="historySection" class="page-section" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+                        <h2 style="margin:0;"><i class="fas fa-file-alt"></i> Laporan Kehadiran</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="exportToExcel()" class="btn btn-secondary"
+                                style="background: rgba(46, 213, 115, 0.1); color: var(--success); border-color: var(--success);">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button onclick="exportToPDF()" class="btn btn-secondary"
+                                style="background: rgba(255, 71, 87, 0.1); color: var(--danger); border-color: var(--danger);">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid-2"
+                        style="margin-bottom: 2rem; background: rgba(255,255,255,0.02); padding: 1.5rem; border-radius: var(--radius-md);">
+                        <div class="form-group">
+                            <label>Filter Tanggal</label>
+                            <input type="date" id="filterDate" onchange="loadHistory()">
+                        </div>
+                        <div class="form-group">
+                            <label>Filter Kelas</label>
+                            <select id="filterKelas" onchange="loadHistory()"></select>
+                        </div>
+                    </div>
+
+                    <div id="historyList" class="table-responsive">
+                        <p class="loading-text" style="color: var(--text-dim);">Memuat data...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Izin Section -->
+            <section id="izinSection" class="page-section" style="display: none;">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                        <h2><i class="fas fa-user-clock"></i> Daftar Siswa Izin (Hari Ini)</h2>
+                        <button onclick="loadSiswaIzin()" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Siswa</th>
+                                    <th>Kelas</th>
+                                    <th>Status</th>
+                                    <th>Approval</th>
+                                    <th>Keterangan</th>
+                                    <th>Bukti</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="siswaIzinTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="modal">
+        <div class="modal-content qr-modal-content">
+            <span class="close" onclick="closeModal('qrModal')">&times;</span>
+            <h2><i class="fas fa-qrcode"></i> Scan QR Code Ini</h2>
+            <div class="qr-details">
+                <div class="qr-info">
+                    <h3 id="qrMapel">Mata Pelajaran</h3>
+                    <p id="qrKelas"><i class="fas fa-school"></i> Kelas</p>
+                    <p id="qrTime"><i class="fas fa-clock"></i> Waktu</p>
+                </div>
+                <div class="qr-code-container">
+                    <img id="qrImage" src="" alt="QR Code" class="qr-image">
+                    <div class="qr-actions">
+                        <button onclick="printQR()" class="btn-secondary">
+                            <i class="fas fa-print"></i> Cetak
+                        </button>
+                        <button onclick="copyQRCode()" class="btn-secondary">
+                            <i class="fas fa-copy"></i> Copy Kode
+                        </button>
+                    </div>
+                    <p class="qr-code-text" id="qrCode">Kode: ...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Session Modal -->
+    <div id="editSessionModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editSessionModal')">&times;</span>
+            <h2><i class="fas fa-edit"></i> Edit Sesi</h2>
+            <form id="editSessionForm" onsubmit="updateSession(event)">
+                <input type="hidden" id="editSessionId">
+                <div class="form-group">
+                    <label for="editSessionMapel">Mata Pelajaran</label>
+                    <select id="editSessionMapel" class="form-control" required>
+                        <option value="">Pilih Mapel...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editSessionKelas">Kelas</label>
+                    <select id="editSessionKelas" class="form-control" required>
+                        <option value="">Pilih Kelas...</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editSessionStart">Jam Mulai</label>
+                        <input type="time" id="editSessionStart" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editSessionEnd">Jam Selesai</label>
+                        <input type="time" id="editSessionEnd" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Simpan Perubahan
+                    </button>
+                    <button type="button" onclick="closeModal('editSessionModal')" class="btn-secondary">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        style="text-align: center; margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; margin-bottom: 2rem;">
+        <p style="color: var(--text-dim); font-size: 0.85rem;">
+            &copy; 2026 Sistem Absensi Sekolah<br>
+            <span style="opacity: 0.7;">Modern • Secure • Fast</span>
+        </p>
+        <div
+            style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; display: inline-block;">
+            <div style="
+                background: linear-gradient(90deg, #3498db, #2ecc71, #f1c40f, #e74c3c, #3498db);
+                background-size: 300% 300%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 0.9rem;
+                font-weight: 600;
+                animation: gradient-shift 4s ease infinite;
+                filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.5));
+            ">
+                ✨ Developed by Wahyu Yuhono ✨
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => console.log('SW registered:', registration))
+                    .catch(error => console.log('SW registration failed:', error));
+            });
+        }
+    </script>
+    <script src="js/teacher.js"></script>
+</body>
+
+</html>

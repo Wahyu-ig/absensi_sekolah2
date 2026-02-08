@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistem Absensi Sekolah</title>
+
+    <meta name="theme-color" content="#2980b9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Absensi QR">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @keyframes gradient-shift {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-school"></i>
+                </div>
+                <h1>Absensi Sekolah</h1>
+                <p style="color: var(--text-muted);">Silakan masuk untuk melanjutkan</p>
+            </div>
+
+            <div id="alertBox" class="alert"></div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="nisn">NISN / NIP</label>
+                    <div style="position: relative;">
+                        <input type="text" id="nisn" placeholder="Masukkan NISN atau NIP" required autocomplete="off"
+                            style="padding-left: 45px;">
+                        <i class="fas fa-user"
+                            style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-dim);"></i>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div style="position: relative;">
+                        <input type="password" id="password" placeholder="Masukkan Password" required
+                            style="padding-left: 45px;">
+                        <i class="fas fa-lock"
+                            style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-dim);"></i>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">
+                    Masuk <i class="fas fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <div
+                style="text-align: center; margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
+                <p style="color: var(--text-dim); font-size: 0.85rem;">
+                    &copy; 2026 Sistem Absensi Sekolah<br>
+                    <span style="opacity: 0.7;">Modern • Secure • Fast</span>
+                </p>
+                <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px;">
+                    <div style="
+                        background: linear-gradient(90deg, #3498db, #2ecc71, #f1c40f, #e74c3c, #3498db);
+                        background-size: 300% 300%;
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        font-size: 0.9rem;
+                        font-weight: 600;
+                        animation: gradient-shift 4s ease infinite;
+                        filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.5));
+                    ">
+                        ✨ Developed by Wahyu Yuhono ✨
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => console.log('SW registered:', registration))
+                    .catch(error => console.log('SW registration failed:', error));
+            });
+        }
+    </script>
+    <script src="js/login.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                const role = user.role;
+                if (role === 'superadmin' || role === 'admin') window.location.href = '/admin.html';
+                else if (role === 'teacher') window.location.href = '/teacher.html';
+                else if (role === 'student') window.location.href = '/student.html';
+            } catch (e) {
+                localStorage.clear();
+            }
+        }
+    </script>
+</body>
+
+</html>
