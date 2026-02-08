@@ -1,15 +1,12 @@
 const mysql = require('mysql2/promise');
 
-// Railway menyediakan DATABASE_URL secara otomatis di Environment Variables
-const dbConfig = process.env.DATABASE_URL || {
+const pool = mysql.createPool(process.env.DATABASE_URL || {
     host: process.env.MYSQLHOST,
     user: process.env.MYSQLUSER,
     password: process.env.MYSQLPASSWORD,
     database: process.env.MYSQLDATABASE,
     port: process.env.MYSQLPORT
-};
-
-const pool = mysql.createPool(dbConfig);
+});
 
 async function initializeDatabase() {
     try {
@@ -22,4 +19,5 @@ async function initializeDatabase() {
     }
 }
 
-module.exports = { pool, initializeDatabase };
+// Kita export 'db' supaya cocok dengan controller kamu yang lama
+module.exports = { db: pool, pool, initializeDatabase };
