@@ -11,6 +11,7 @@ const logger = require('./config/logger');
 const attendanceController = require('./controllers/attendanceController');
 
 const app = express();
+app.set('trust proxy', 1); // Tambahkan baris ini!
 const server = http.createServer(app);
 
 const io = socketIo(server, {
@@ -91,3 +92,4 @@ async function start() {
 start();
 
 module.exports = app;
+
